@@ -75,8 +75,6 @@ namespace Nerine
                         {
                             var type = reader.ReadByte();
                             var length = reader.ReadInt32();
-                            Debug.WriteLine(type);
-                            Debug.WriteLine(stream.Position);
 
                             switch (type)
                             {
@@ -111,9 +109,15 @@ namespace Nerine
                 });
             }
 
+            return;
         }
 
         #region Database Methods
+        public Collection? GetCollection(string name)
+        {
+            return Collections.Find(x => x.Name == name);
+        }
+
         public Collection AddCollection(Collection coll)
         {
             if (Collections.Find(x => x.Name == coll.Name) != null)
@@ -150,7 +154,9 @@ namespace Nerine
 
             var name = (DatabaseString) Structure.Construct(StructureType.String, reader.ReadBytes(3 + strlen));
 
-            var coll = new Collection(name.String);
+            var coll = new Collection(name.Value);
+
+            Debug.WriteLine("create db");
 
             // read sub blocks
             while (true)
@@ -163,6 +169,7 @@ namespace Nerine
                 switch (subtype)
                 {
                     case (byte) BlockType.Table: // a table
+                        Debug.WriteLine("read table");
                         ReadTable(coll);
                         break;
 
@@ -190,6 +197,7 @@ namespace Nerine
 
             var name = (DatabaseString)Structure.Construct(StructureType.String, reader.ReadBytes(3 + strlen));
             var col = new List<Column>();
+            var row = new List<Row>();
 
             var done = false;
 
@@ -202,9 +210,12 @@ namespace Nerine
                 switch (subtype)
                 {
                     case (byte)BlockType.Rows:
+                        Debug.WriteLine("read rows");
+                        ReadRows(col, row);
                         break;
 
                     case (byte)BlockType.Columns:
+                        Debug.WriteLine("read columns");
                         ReadColumns(col);
                         break;
 
@@ -224,8 +235,9 @@ namespace Nerine
 
             coll.Tables.Add(new Table()
             {
-                Name = name.String,
-                Columns = col
+                Name = name.Value,
+                Columns = col,
+                Rows = row
             });
         }
 
@@ -236,6 +248,8 @@ namespace Nerine
                 if (reader.ReadByte() == Constants.SEPARATOR)
                 {
                     var type = (StructureType)reader.ReadByte();
+                    var primary = BitConverter.ToBoolean(reader.ReadBytes(1));
+                    var nullable = BitConverter.ToBoolean(reader.ReadBytes(1));
 
                     // read column name
                     reader.ReadByte(); // ignore first byte;
@@ -244,11 +258,119 @@ namespace Nerine
 
                     var name2 = (DatabaseString)Structure.Construct(StructureType.String, reader.ReadBytes(3 + strlen2));
 
-                    col.Add(new Column()
+                    var colm = new Column()
                     {
-                        Name = name2.String,
-                        Type = type
-                    });
+                        Name = name2.Value,
+                        Type = type,
+                        Primary = primary,
+                        Nullable = nullable
+                    };
+
+                    // there is a default
+                    if (reader.ReadByte() == 0x1E)
+                    {
+                        object def;
+                        if (type == StructureType.String)
+                        {
+                            // read default str
+                            reader.ReadByte(); // ignore first byte;
+                            var strlen3 = reader.ReadInt16();
+                            stream.Position -= 3;
+                            var name3 = (DatabaseString)Structure.Construct(StructureType.String, reader.ReadBytes(3 + strlen3));
+
+                            def = name3.Value;
+                        }
+                        else
+                        {
+                            def = Structure.Construct(type, reader.ReadBytes(Structure.GetSize(type))).Value;
+                        }
+
+                        colm.Default = def;
+                    }
+                    else
+                    {
+                        stream.Position -= 1;
+                    }
+                       
+
+                    col.Add(colm);
+                }
+                else
+                {
+                    stream.Position -= 1;
+                    break;
+                }
+            }
+        }
+
+        private void ReadRows(List<Column> col, List<Row> row)
+        {
+            while (true)
+            {
+                var sep = reader.ReadByte();
+                if (sep == Constants.SEPARATOR)
+                {
+                    if (sep > 0xF0 || sep != Constants.SEPARATOR)
+                    {
+                        stream.Position -= 1;
+                        break;
+                    }
+
+                    var i = 0;
+                    var addableRow = new Row();
+
+                    while (true)
+                    {
+
+                        try
+                        {
+                            Debug.WriteLine(i);
+                            if (col[i] == null)
+                            {
+                                break;
+                            }
+
+                            var column = col[i];
+
+                            if (reader.ReadByte() == 0x00)
+                            {
+                                if (column.Default == null || !column.Nullable)
+                                    throw new InvalidDatabaseException(
+                                        $"A row has a null value, while column {column.Name} is not nullable.");
+
+                                addableRow.Values.Add(null);
+                            }
+                            else
+                            {
+                                stream.Position -= 1;
+
+                                // parse data
+                                if (column.Type == StructureType.String)
+                                {
+                                    reader.ReadByte(); // ignore first byte;
+                                    var strlen3 = reader.ReadInt16();
+                                    stream.Position -= 3;
+                                    var name3 = (DatabaseString) Structure.Construct(StructureType.String,
+                                        reader.ReadBytes(3 + strlen3));
+
+                                    addableRow.Values.Add(name3.Value);
+                                }
+                                else if (column.Type == StructureType.Byte)
+                                {
+                                    addableRow.Values.Add(reader.ReadByte());
+                                }
+                            }
+
+                            i++;
+                        }
+                        catch (Exception e)
+                        {
+                            // oh ok
+                            break;
+                        }
+                    }
+
+                    row.Add(addableRow);
                 }
                 else
                 {
