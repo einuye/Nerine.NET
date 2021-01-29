@@ -44,13 +44,32 @@ namespace Nerine.Tests
         {
             var table = db.GetCollection("test").GetTable("test");
 
-            table.Insert(new List<object>()
+            table.Insert(new Dictionary<string, object>()
             {
-                "string",
-                (byte)2
+                {"string", "string"},
+                {"byte", (byte)2},
             });
 
-            db.Save();
+            //db.Save();
+        }
+        [Test]
+        public void TestQueryBuilder()
+        {
+            var coll = db.GetCollection("test");
+            var qb = coll.StartBuilder();
+
+            var query = qb
+                .Select(new[] { "byte" })
+                .From("test")
+                .End();
+
+            var query2 = qb
+                .Select(new[] { "byte", "string" })
+                .From("test")
+                .Where(x => x.Key == "byte" && (byte)x.Value == 1)
+                .End();
+
+            return;
         }
 
         // File-based Tests

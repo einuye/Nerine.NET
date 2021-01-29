@@ -16,6 +16,11 @@ namespace Nerine.Collections
             Name = name;
         }
 
+        public QueryBuilder StartBuilder()
+        {
+            return new QueryBuilder(this);
+        }
+
         public Table? GetTable(string name)
         {
             return Tables.Find(x => x.Name == name);
