@@ -142,6 +142,11 @@ namespace Nerine.IO
 
             return setter;
         }
+        public static int SizeOf(Type type)
+        {
+
+            return Marshal.SizeOf(type);
+        }
 
         public static int SizeOf<T>()
         {
