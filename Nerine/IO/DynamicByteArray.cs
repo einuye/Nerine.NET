@@ -13,7 +13,6 @@ namespace Nerine.IO
 
         private BinaryWriter writer;
 
-
         public DynamicByteArray()
         {
             Bytes = new byte[0];
