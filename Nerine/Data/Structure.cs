@@ -25,6 +25,8 @@ namespace Nerine.Data
         {
             switch (type)
             {
+                case StructureType.String:
+                    return typeof(string);
                 case StructureType.Byte:
                     return typeof(byte);
             }
