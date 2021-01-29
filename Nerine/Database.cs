@@ -1,9 +1,12 @@
 ﻿ using System;
-using System.Diagnostics;
+ using System.Collections.Generic;
+ using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using Nerine.Data;
+ using Nerine.Collections;
+ using Nerine.Collections.Tables;
+ using Nerine.Data;
 using Nerine.Exceptions;
 using Nerine.IO;
 
@@ -22,8 +25,15 @@ namespace Nerine
         private BinaryReader reader;
 
         #region Database Information
-
         public int FormatVersion;
+
+        public long CreationDate;
+
+        public long LastEditedDate;
+
+        public List<Collection> Collections = new List<Collection>();
+
+        public byte[] Sha256Checksum;
         #endregion
 
         public Database(string path)
@@ -55,17 +65,187 @@ namespace Nerine
                 // read database
                 CreateRead(delegate(BinaryReader reader)
                 {
-                    // ignore first 5 bytes
-                    stream.Position += 6;
+                    // ignore first 10 bytes
+                    stream.Position += 10;
 
-                    // start data
-                    FormatVersion = reader.ReadInt32();
+                    // read blocks
+                    while (true)
+                    {
+                        try
+                        {
+                            var type = reader.ReadByte();
+                            var length = reader.ReadInt32();
+                            Debug.WriteLine(type);
+                            Debug.WriteLine(stream.Position);
+
+                            switch (type)
+                            {
+                                // Metadata Block
+                                case (byte)BlockType.Metadata:
+                                    CreationDate = reader.ReadInt64();
+                                    LastEditedDate = reader.ReadInt64();
+                                    FormatVersion = reader.ReadInt32();
+                                    break;
+
+                                // Collection Block
+                                case (byte)BlockType.Collection:
+                                    ReadDatabase();
+                                    break;
+
+                                case (byte)BlockType.EndOfFile:
+                                    stream.Position -= 4;
+                                    Sha256Checksum = reader.ReadBytes(32);
+                                    break;
+                                default:
+                                    throw new InvalidBlockTypeException("An invalid block was parsed!");
+                            }
+                        }
+                        catch (IOException e)
+                        {
+                            // end of file.
+                            break;
+                        }
+                    }
 
                     return true;
                 });
             }
 
         }
+
+        #region Database Methods
+        public Collection AddCollection(Collection coll)
+        {
+            if (Collections.Find(x => x.Name == coll.Name) != null)
+                throw new CollectionExistsException("This collection already exists!");
+
+            // add collection
+            Collections.Add(coll);
+
+            return coll;
+        }
+
+        public Collection AddCollection(string name)
+        {
+            if (Collections.Find(x => x.Name == name) != null)
+                throw new CollectionExistsException("This collection already exists!");
+            
+            // add collection
+            var coll = new Collection(name);
+            Collections.Add(coll);
+
+            return coll;
+        }
+
+        #endregion
+
+        #region Private Database Reading
+
+        private void ReadDatabase()
+        {
+            // parse database name
+            reader.ReadByte(); // ignore first byte;
+            var strlen = reader.ReadInt16();
+            stream.Position -= 3;
+
+            var name = (DatabaseString) Structure.Construct(StructureType.String, reader.ReadBytes(3 + strlen));
+
+            var coll = new Collection(name.String);
+
+            // read sub blocks
+            while (true)
+            {
+                var subtype = reader.ReadByte();
+                var sublength = reader.ReadInt32();
+
+                switch (subtype)
+                {
+                    case (byte)BlockType.Table: // a table
+                        ReadTable(coll);
+                        break;
+
+                    default: // end of database, most likely
+                        break;
+                }
+
+                break;
+            }
+
+            AddCollection(coll);
+        }
+
+        private void ReadTable(Collection coll)
+        {
+            // parse table name
+            reader.ReadByte(); // ignore first byte;
+            var strlen = reader.ReadInt16();
+            stream.Position -= 3;
+
+            var name = (DatabaseString)Structure.Construct(StructureType.String, reader.ReadBytes(3 + strlen));
+            var col = new List<Column>();
+
+            // read sub blocks
+            while (true)
+            {
+                var subtype = reader.ReadByte();
+                var sublength = reader.ReadInt32();
+
+                switch (subtype)
+                {
+                    case (byte)BlockType.Rows:
+                        Debug.WriteLine("Rows Found");
+                        break;
+
+                    case (byte)BlockType.Columns:
+                        ReadColumns(col);
+                        break;
+
+                    default: // end of table, most likely
+                        Debug.WriteLine("Table End");
+                        break;
+                }
+
+                break;
+            }
+
+            coll.Tables.Add(new Table()
+            {
+                Name = name.String,
+                Columns = col
+            });
+        }
+
+        private void ReadColumns(List<Column> col)
+        {
+            while (true)
+            {
+                if (reader.ReadByte() == Constants.SEPARATOR)
+                {
+                    var type = (StructureType)reader.ReadByte();
+
+                    // read column name
+                    reader.ReadByte(); // ignore first byte;
+                    var strlen2 = reader.ReadInt16();
+                    stream.Position -= 3;
+
+                    var name2 = (DatabaseString)Structure.Construct(StructureType.String, reader.ReadBytes(3 + strlen2));
+
+                    col.Add(new Column()
+                    {
+                        Name = name2.String,
+                        Type = type
+                    });
+                }
+                else
+                {
+                    Debug.WriteLine(stream.Position);
+                    stream.Position -= 1;
+                    break;
+                }
+            }
+        }
+
+        #endregion
 
         public void Save()
         {
@@ -75,7 +255,7 @@ namespace Nerine
             using (var memoryStream = new MemoryStream())
             {
 
-                CreateRead(delegate(BinaryReader reader)
+                CreateRead(delegate (BinaryReader reader)
                 {
                     // copy first 35 bytes to memory stream
                     var bytes = reader.ReadBytes(35);
@@ -83,9 +263,17 @@ namespace Nerine
 
                     return true;
                 });
-                // save data
+
+
+                // save database data
                 CreateWrite(memoryStream, delegate(BinaryWriter writer)
                 {
+                    // write collections
+                    foreach (var collection in Collections)
+                    {
+                        writer.Write(collection.ToBytes());
+                    }
+
                     // write end-of-file
                     using (SHA256 s256 = SHA256.Create())
                     {
@@ -93,8 +281,6 @@ namespace Nerine
                         writer.Write((byte)0xFF);
                         writer.Write(hash);
                     }
-                    Debug.WriteLine("End");
-                    Debug.WriteLine(memoryStream.Length);
 
                     // write to file
                     using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
@@ -104,8 +290,6 @@ namespace Nerine
 
                     return true;
                 });
-
-
             }
         }
 
@@ -256,7 +440,6 @@ namespace Nerine
         {
             return CreateRead(delegate(BinaryReader reader)
             {
-                Console.WriteLine("Read");
                 // first hand verification of base length
                 if (reader.BaseStream.Length == 0 || reader.BaseStream.Length < 9)
                     return false;
@@ -282,7 +465,11 @@ namespace Nerine
         Metadata = 0xF1,
         Collection = 0xF2,
 
-        // Sub-block Types.
+        Table = 0xFA,
+
+        // Sub-block Types
+        Columns = 0xE1,
+        Rows = 0xE2,
 
         // End of file
         EndOfFile = 0xFF
