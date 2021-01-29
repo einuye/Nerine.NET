@@ -1,7 +1,21 @@
 ﻿NERINE DATABASE FILE (.ndb) STRUCTURE v1
 
-All rows are in little endian, and all parsers should read/write rows
-of the database in this format.
+Nerine aims to be an easy malleable serverless database module with
+key similarities to common databases that are attached to servers,
+such as MySQL, PostgreSQL; whilst having the key simplicity and 
+replicability of file based databases, like SQLite, and the lack
+of SQL in places like MongoDB, Redis, and more.
+
+This document aims to specify the structure of a Nerine database, in
+case of other interested developers looking to make their own usable
+implementable parser, or are interested in the inner components. 
+
+All of the binary data provided as examples come from the the tests project.
+
+All bytes and forms are in little endian, and all parsers should properly
+read and write rows of the database in this order.
+
+
 
 [Header]
 The header is a way to validate whether or not this is a proper database.
@@ -37,11 +51,11 @@ is specific to the block type, and can be different per block.
 -------------------------------------------------------------------------------------------------------
 
 (The secondary example provided is a column block)
---------------------------------------------------------------------
- Type Length		Separator   Data Type   Column Name (String)
- E1   0A 00 00 00   1D          01          1F 05 00 41 61 61 61 41
- 0    1             5           6           7
---------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------
+ Type Length		Separator   Data Type   Is primary   Is nullable   Column Name (String)   Def. Present   Default
+ E1   0A 00 00 00   1D          02          01           00            1F 04 00 62 79 74 65   1E             01
+ 0    1             5           6           7            8             9                      15             16
+---------------------------------------------------------------------------------------------------------------------
 
 [[Block Types]]:
 
@@ -54,7 +68,6 @@ created the database.
 [FA]: A table in a collection, containing columns and rows.
  
 [FF]: End of the Nerine database file..
-
 
 [[ Sub-Block Types ]]:
 
@@ -77,26 +90,112 @@ Example:
  0      1             5                          13	                        21
 -------------------------------------------------------------------------------------------------------
 
-The metadata block will always be 14 bytes long,
+The metadata block will always be 14 bytes long.
 
+[Collection]: (Type F2)
+A collection is a table-containing database, while the overall file is a database
+of collections. Collections exist to be the naming workaround to where table-data
+pairs are held.
+
+Example:
+---------------------------------------------------------------------------------
+ Type   Length        String                 Table
+ F2     37 00 00 00   1F 04 00 74 65 73 74   FA 2B 00 00 00 1F 04 00 74 65 73 74
+ 0      1             5                      12
+---------------------------------------------------------------------------------
+
+A collection can have no tables, but will always contain a variable-length string
+denoting the name of itself.
+
+[Table]: (Type FA)
+A table is a portion of a collection where data is stored. It has columns and rows,
+where the columns denote the structure of the table, and the rows is the data.
+
+Example:
+---------------------------------------------------------------------------------
+ Type   Length        Table Name 
+ FA     2B 00 00 00   1F 04 00 74 65 73 74
+ 0      1             5
+---------------------------------------------------------------------------------
+
+A table itself will always contain two distinctive sub-blocks, known as a column and
+row block, denoting structure and data as mentioned before.
 
 [End-of-Database]
-The end of the database. This is the only block without a length value. as the
+The end of the database file. This is the only block without a length value. as the
 remaining bytes are a SHA256 checksum, generated from the entire database,
 excluding the last block.
 
+Example:
+--------------------------------------------------------------------------------------------------------
+ Type   SHA256 Checksum
+ FF     E3 B0 C4 42 98 FC 1C 14 9A FB F4 C8 99 6F B9 24 27 AE 41 E4 64 9B 93 4C A4 95 99 1B 78 52 B8 55
+ 1      2
+--------------------------------------------------------------------------------------------------------
+
+
 -- [[[ SUB-BLOCK TYPES ]]] --
+
+[Columns]: (Type E1)
+The columns a table contains, containing a bunch of individual columns separated by a specific 
+character. (1D) Columns work as the general table structure, denoting what specific data goes
+where.
+
+Example:
+---------------------------------------------------------------------------------------------------------------------
+ Type Length		Separator   Data Type   Is primary   Is nullable   Column Name (String)   Def. Present   Default
+ E1   0A 00 00 00   1D          02          01           00            1F 04 00 62 79 74 65   1E             01
+ 0    1             5           6           7            8             9                      15             16
+---------------------------------------------------------------------------------------------------------------------
+
+All columns will be seperated individually, and are variable length due to the naming of one
+being malleable.
+
+Example Column:
+--------------------------------------------------------------------------------------
+ Data Type   Is primary   Is nullable   Column Name (String)   Def. Present   Default
+ 02          01           00            1F 04 00 62 79 74 65   1E             01
+ 0           1            2             3                      10             11
+--------------------------------------------------------------------------------------
+
+All columns will have the first 3 bytes denoting its data type, a primary boolean byte,
+and a nullable boolean byte. The primary byte will tell the parser whether or not this
+column is a primary, and the nullable byte tells the parser whether or not the column
+is nullable.
+
+Optionally, after the column's name a default may be provided, and must be parsed based
+off of what the data type of the overall column is. It will be indicated by a present
+[1E] byte, which informs the parser that the next X bytes is the default. After that,
+more columns may be included, (as separated by the [1D] seperator) or the table may
+end with a type [E2] block, also known as a rows block.
+
+[Rows]: (Type E2)
+The rows inside of a table, as denoted by the columns in it. How columns are read, the
+rows will be read in the same exact order.
+
+Example:
+-------------------------------------------------------------------------------------------------------
+ Type   Length         Separator   Data (based off Column)      Separator   Data (based off Column)
+ E2     16 00 00 00    1D          1F 06 00 73 74 72 69 6E 67   1D          1F 06 00 73 74 72 69 6E 67
+ 0      1              5           6                            15          16
+-------------------------------------------------------------------------------------------------------
+
+The data belonging to a speicfic row is read in the same order of data type that the column
+it corresponds with is. (e.g string being a database string, byte being byte and what not.)
+If a corresponding column is deleted, then the data in each row must be deleted as well.
+
+The rows is the last portion of a table, and afterwards, either the end of the file or a
+new collection will follow the end of the block.
 
 
 -- [[ DATA TYPES ]] --
 
-[String]
+[String] (Type 01)
 A string in the Nerine database, categorized as a binary-safe variable-length amount of
 bytes, characterized by a [1F] byte, and a 2 byte sized string length afterwards; ending
 with a UTF-8 encoded string.
 
 All strings 
-
 -------------------------------------
  Bit   Length   String
  1F    05 00    41 61 61 61 41
@@ -106,4 +205,22 @@ All strings
 The first byte indicates that there is a string, and that the next 2 bytes will be the length.
 After the first 3 bytes are read and parsed, you're able to read the string as utf-8. The
 amount of bytes allocated to length mean that strings are limited to being 65535 characters
-long. This is to prevent massive amounts of strings from being added to the database.
+long. This is to prevent massive amounts of string data from being added to the database.
+
+[Byte] (Type 02)
+A normal byte, with a distinctive length of 1. 
+
+[Short] (Type 03)
+A normal short, with a distinctive length of 2.
+
+[Int] (Type 04)
+A normal integer, with a distinctive length of 4.
+
+[Float/Single] (Type 05)
+A normal float value, with a distinctive length of 4. Useful for decimals.
+	
+[Long] (Type 06)
+A normal integer, with a distinctive length of 8.
+
+[Double] (Type 07)
+A normal double value, with a distinctive length of 8. Useful for larger decimals.
