@@ -108,8 +108,6 @@ namespace Nerine
                     return true;
                 });
             }
-
-            return;
         }
 
         #region Database Methods
@@ -338,7 +336,7 @@ namespace Nerine
                                     throw new InvalidDatabaseException(
                                         $"A row has a null value, while column {column.Name} is not nullable.");
 
-                                addableRow.Values.Add(null);
+                                addableRow.Values.Add(column.Name, null);
                             }
                             else
                             {
@@ -353,11 +351,11 @@ namespace Nerine
                                     var name3 = (DatabaseString) Structure.Construct(StructureType.String,
                                         reader.ReadBytes(3 + strlen3));
 
-                                    addableRow.Values.Add(name3.Value);
+                                    addableRow.Values.Add(column.Name, name3.Value);
                                 }
                                 else if (column.Type == StructureType.Byte)
                                 {
-                                    addableRow.Values.Add(reader.ReadByte());
+                                    addableRow.Values.Add(column.Name, reader.ReadByte());
                                 }
                             }
 

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Nerine.Data;
 using Nerine.Exceptions;
 using Nerine.IO;
@@ -13,7 +14,12 @@ namespace Nerine.Collections.Tables
         public List<Column> Columns = new List<Column>();
         public List<Row> Rows = new List<Row>();
 
-        public Row Insert(List<object> values)
+        public Row Select(Predicate<Row> function)
+        {
+            return Rows.Find(function);
+        }
+
+        public Row Insert(Dictionary<string, Object> values)
         {
             // size validato
             if (values.Count < Columns.Count)
@@ -22,23 +28,30 @@ namespace Nerine.Collections.Tables
             // validate individual values
             for (int i = 0; i < Columns.Count; i++)
             {
-                var column = Columns[0];
+                var column = Columns[i];
 
-                if (values[0] == null || 
-                    values[0].GetType() == typeof(string) && string.IsNullOrEmpty(values[0] as string))
+                if (column.Primary)
+                {
+                    if (Rows.Find(x => x.Values[column.Name] != null) != null)
+                        throw new InvalidQueryException(
+                            $"Column ${column.Name} is set as unique, and a duplicate row was attempted to be added.");
+                }
+
+                if (values[column.Name] == null || 
+                    values[column.Name].GetType() == typeof(string) && string.IsNullOrEmpty(values[column.Name] as string))
                 {
                     // there is no default, and the value is null.
                     if (column.Default == null || !column.Nullable)
                         throw new InvalidQueryException($"Column {column.Name} cannot be null, or empty.");
 
-                    values.Add(column.Default);
+                    values.Add(column.Name, column.Default);
                 }
                 else
                 {
-                    var val = values[0];
+                    var val = values[column.Name];
 
-                    if (val.GetType() != GetType(column.Type))
-                        throw new InvalidQueryException($"An invalid object was provided for column {column.Name}");
+                    if (val.GetType() != Structure.GetType(column.Type))
+                        throw new InvalidQueryException($"An invalid value was provided for column {column.Name}");
                 }
             }
 
@@ -49,18 +62,6 @@ namespace Nerine.Collections.Tables
 
             Rows.Add(row);
             return row;
-        }
-
-        public static Type GetType(StructureType type)
-        {
-            if (type == StructureType.String)
-            {
-                return typeof(string);
-            }
-            else
-            {
-                return null;
-            }
         }
 
         // TODO: Find a better way to do this.
@@ -122,11 +123,11 @@ namespace Nerine.Collections.Tables
                     if (val.GetType() == typeof(string))
                     {
                         rowData.Write<byte>(0x1F); // this is a string.
-                        rowData.Write<short>((short)(val as string).Length);
-                        rowData.Write<string>(val as string);
+                        rowData.Write<short>((short)(val.Value as string).Length);
+                        rowData.Write<string>(val.Value as string);
                     } else if (val.GetType() == typeof(byte))
                     {
-                        rowData.Write<byte>((byte)val); //separator
+                        rowData.Write<byte>((byte)val.Value); //separator
                     }
                 }
             }

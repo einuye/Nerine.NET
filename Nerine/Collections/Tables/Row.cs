@@ -8,7 +8,7 @@ namespace Nerine.Collections.Tables
 {
     public class Row
     {
-        public List<object> Values = new List<object>();
+        public Dictionary<string, object> Values = new Dictionary<string, object>();
 
         public Row()
         {
