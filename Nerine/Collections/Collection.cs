@@ -16,6 +16,11 @@ namespace Nerine.Collections
             Name = name;
         }
 
+        public Table? GetTable(string name)
+        {
+            return Tables.Find(x => x.Name == name);
+        }
+
         public Table AddTable(string name, List<Column> columns)
         {
             if (Tables.Find(x => x.Name == name) != null)
