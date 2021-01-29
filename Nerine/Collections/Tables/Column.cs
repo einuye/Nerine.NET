@@ -7,5 +7,11 @@ namespace Nerine.Collections.Tables
         public string Name;
 
         public StructureType Type;
+
+        public object Default = null;
+
+        public bool Primary = false;
+        
+        public bool Nullable = false;
     }
 }
