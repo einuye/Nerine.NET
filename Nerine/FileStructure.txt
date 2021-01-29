@@ -1,0 +1,109 @@
+﻿NERINE DATABASE FILE (.ndb) STRUCTURE v1
+
+All values are in little endian, and all parsers should read/write values
+of the database in this format.
+
+[Header]
+The header is a way to validate whether or not this is a proper database.
+A parser should read this and determine or not whether or not it's valid
+to use as a file or not. The magic string will always be 6 bytes, and
+the format version will always be 4.
+
+--------------------------------------
+ "NERINE" (magic string)   Format Version (1)
+ 4E 45 52 49 4E 45         01 00 00 00
+ 0                         6
+--------------------------------------
+
+If a file doesnt contain this first basic header, then it isn't a valid
+database file. Furthermore, if the format is outdated by 3 entire versions,
+then it should automatically be denied access too. While it would be
+generally a better idea to have upper backwards compatibility, I do not wish
+to support older versions, as format changes are definitely going to be rare.
+
+[Block]
+A block is a portion of the database, identified by a 1-byte type/op-code starting
+from F(1 - F), or E(1- F). It will include the data it's specified to, alongside a
+general overall length, excluding the bytes of the length.
+
+A block will always start with it's type, and a 4-byte length. The data included
+is specific to the block type, and can be different per block.
+
+(The example provided is a metadata block)
+-------------------------------------------------------------------------------------------------------
+ Type   Length        Creation Date              Last Edit Date             Creator's Software Version
+ F1     14 00 00 00   F8 F3 13 60 00 00 00 00    09 F4 13 60 00 00 00 00    01 00 00 00
+ 0      1             5                          13	                        21
+-------------------------------------------------------------------------------------------------------
+
+(The secondary example provided is a column block)
+--------------------------------------------------------------------
+ Type Length		Separator   Data Type   Column Name (String)
+ E1   0A 00 00 00   1D          01          1F 05 00 41 61 61 61 41
+ 0    1             5           6           7
+--------------------------------------------------------------------
+
+[[Block Types]]:
+
+[F1]: Metadata, for all the information about the database, such as the time it
+was created, the time the database was last edited, and the version of Nerine that
+created the database.
+
+[F2]: Indicator of a collection being here, or a list of tables containing values.
+
+[FA]: A table in a collection, containing columns and values.
+ 
+[FF]: End of the Nerine database file..
+
+
+[[ Sub-Block Types ]]:
+
+[E1]: A columns block, containing all of the columns in a table.
+[E2]: A values table, containing a set of values in the table.
+
+
+-- [[ BLOCK TYPES ]] --
+
+[Metadata]: (Type F1)
+Metadata information of the database, containing in the following order:
+* Creation Time (long (8 bytes))
+* Edit Time (long (8 bytes))
+* Database Version created with (int (4 bytes))
+
+Example:
+-------------------------------------------------------------------------------------------------------
+ Type   Length        Creation Date              Last Edit Date             Creator's Software Version
+ F1     14 00 00 00   F8 F3 13 60 00 00 00 00    09 F4 13 60 00 00 00 00    01 00 00 00
+ 0      1             5                          13	                        21
+-------------------------------------------------------------------------------------------------------
+
+The metadata block will always be 14 bytes long,
+
+
+[End-of-Database]
+The end of the database. This is the only block without a length value. as the
+remaining bytes are a SHA256 checksum, generated from the entire database,
+excluding the last block.
+
+-- [[[ SUB-BLOCK TYPES ]]] --
+
+
+-- [[ DATA TYPES ]] --
+
+[String]
+A string in the Nerine database, categorized as a binary-safe variable-length amount of
+bytes, characterized by a [1F] byte, and a 2 byte sized string length afterwards; ending
+with a UTF-8 encoded string.
+
+All strings 
+
+-------------------------------------
+ Bit   Length   String
+ 1F    05 00    41 61 61 61 41
+ 10    1        3
+-------------------------------------
+
+The first byte indicates that there is a string, and that the next 2 bytes will be the length.
+After the first 3 bytes are read and parsed, you're able to read the string as utf-8. The
+amount of bytes allocated to length mean that strings are limited to being 65535 characters
+long. This is to prevent massive amounts of strings from being added to the database.
