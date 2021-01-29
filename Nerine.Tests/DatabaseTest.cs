@@ -4,6 +4,7 @@ using System.Text;
 using Nerine.Collections.Tables;
 using Nerine.Data;
 using NUnit.Framework;
+using NUnit.Framework.Internal;
 
 namespace Nerine.Tests
 {
@@ -17,16 +18,38 @@ namespace Nerine.Tests
         public void TestAdd()
         {
             // add collection and a table
-            var coll = db.AddCollection("test");
-            var t1 = coll.AddTable("test", new List<Column>()
+            var coll2 = db.AddCollection("test");
+            var t21 = coll2.AddTable("test", new List<Column>()
             {
                 new Column()
                 {
-                    Name = "Test",
-                    Type = StructureType.String
+                    Name = "string",
+                    Type = StructureType.String,
+                    Primary = true,
+                },
+                new Column()
+                {
+                    Name = "byte",
+                    Type = StructureType.Byte,
+                    Primary = true,
+                    Default = (byte)1
                 }
             });
-                
+
+            db.Save();
+        }
+
+        [Test]
+        public void TestInsert()
+        {
+            var table = db.GetCollection("test").GetTable("test");
+
+            table.Insert(new List<object>()
+            {
+                "string",
+                (byte)2
+            });
+
             db.Save();
         }
 
