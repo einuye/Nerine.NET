@@ -158,17 +158,24 @@ namespace Nerine
                 var subtype = reader.ReadByte();
                 var sublength = reader.ReadInt32();
 
+                var done = false;
+
                 switch (subtype)
                 {
-                    case (byte)BlockType.Table: // a table
+                    case (byte) BlockType.Table: // a table
                         ReadTable(coll);
                         break;
 
                     default: // end of database, most likely
+                        stream.Position -= 5;
+                        done = true;
                         break;
                 }
 
-                break;
+                if (done)
+                {
+                    break;
+                }
             }
 
             AddCollection(coll);
@@ -184,6 +191,8 @@ namespace Nerine
             var name = (DatabaseString)Structure.Construct(StructureType.String, reader.ReadBytes(3 + strlen));
             var col = new List<Column>();
 
+            var done = false;
+
             // read sub blocks
             while (true)
             {
@@ -193,7 +202,6 @@ namespace Nerine
                 switch (subtype)
                 {
                     case (byte)BlockType.Rows:
-                        Debug.WriteLine("Rows Found");
                         break;
 
                     case (byte)BlockType.Columns:
@@ -201,11 +209,17 @@ namespace Nerine
                         break;
 
                     default: // end of table, most likely
-                        Debug.WriteLine("Table End");
+                        stream.Position -= 5;
+                        done = true;
                         break;
+
                 }
 
-                break;
+                if (done)
+                {
+                    Debug.WriteLine("Done.");
+                    break;
+                }
             }
 
             coll.Tables.Add(new Table()
@@ -238,7 +252,6 @@ namespace Nerine
                 }
                 else
                 {
-                    Debug.WriteLine(stream.Position);
                     stream.Position -= 1;
                     break;
                 }
