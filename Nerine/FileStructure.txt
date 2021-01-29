@@ -1,6 +1,6 @@
 ﻿NERINE DATABASE FILE (.ndb) STRUCTURE v1
 
-All values are in little endian, and all parsers should read/write values
+All rows are in little endian, and all parsers should read/write rows
 of the database in this format.
 
 [Header]
@@ -49,9 +49,9 @@ is specific to the block type, and can be different per block.
 was created, the time the database was last edited, and the version of Nerine that
 created the database.
 
-[F2]: Indicator of a collection being here, or a list of tables containing values.
+[F2]: Indicator of a collection being here, or a list of tables containing rows.
 
-[FA]: A table in a collection, containing columns and values.
+[FA]: A table in a collection, containing columns and rows.
  
 [FF]: End of the Nerine database file..
 
@@ -59,7 +59,7 @@ created the database.
 [[ Sub-Block Types ]]:
 
 [E1]: A columns block, containing all of the columns in a table.
-[E2]: A values table, containing a set of values in the table.
+[E2]: A rows table, containing a set of rows in the table.
 
 
 -- [[ BLOCK TYPES ]] --
