@@ -34,7 +34,7 @@ namespace Nerine.Collections.Tables
                 {
                     if (Rows.Find(x => x.Values[column.Name] != null) != null)
                         throw new InvalidQueryException(
-                            $"Column ${column.Name} is set as unique, and a duplicate row was attempted to be added.");
+                            $"Column {column.Name} is set as unique, and a duplicate row was attempted to be added.");
                 }
 
                 if (values[column.Name] == null || 
