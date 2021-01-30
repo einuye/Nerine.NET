@@ -16,7 +16,7 @@ namespace Nerine.Collections
         private bool queryStarted = false;
 
         // predicates
-        private Func<KeyValuePair<string, object>, bool> wherePredicate;
+        private Func<Dictionary<string, object>, bool> wherePredicate;
 
         public QueryBuilder(Collection coll)
         {
@@ -41,7 +41,7 @@ namespace Nerine.Collections
 
             return this;
         }
-        public QueryBuilder Where(Func<KeyValuePair<string, object>, bool> where)
+        public QueryBuilder Where(Func<Dictionary<string, object>, bool> where)
         {
             if (!queryStarted)
                 return null;
@@ -71,12 +71,13 @@ namespace Nerine.Collections
                         values.Add(index, row.Values[index]);
                     }
 
-                    values = values.Where(wherePredicate).ToDictionary(i => i.Key, i => i.Value);
-
-                    rows.Add(new Row()
+                    if (wherePredicate(values) == true)
                     {
-                        Values = values
-                    });
+                        rows.Add(new Row()
+                        {
+                            Values = values
+                        });
+                    }
                 }
             }
             else

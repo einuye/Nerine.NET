@@ -66,7 +66,10 @@ namespace Nerine.Tests
             var query2 = qb
                 .Select(new[] { "byte", "string" })
                 .From("test")
-                .Where(x => x.Key == "byte" && (byte)x.Value == 1)
+                .Where(x =>
+                {
+                    return (byte) x["byte"] == (byte) 1;
+                })
                 .End();
 
             return;
