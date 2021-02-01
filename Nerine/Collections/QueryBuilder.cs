@@ -12,8 +12,20 @@ namespace Nerine.Collections
     {
         private Collection collection;
         private string[] currentValues;
+        private Dictionary<string, object> currentIValues;
         private string currentTable;
+        private QueryType type;
         private bool queryStarted = false;
+
+        private static List<QueryType> FROM_QUERIES = new List<QueryType>()
+        {
+            QueryType.Select
+        };
+
+        private static List<QueryType> INTO_QUERIES = new List<QueryType>()
+        {
+            QueryType.Insert
+        };
 
         // predicates
         private Func<Dictionary<string, object>, bool> wherePredicate;
@@ -26,7 +38,16 @@ namespace Nerine.Collections
         public QueryBuilder Select(string[] values)
         {
             queryStarted = true;
+            type = QueryType.Select;
+            currentValues = values;
 
+            return this;
+        }
+
+        public QueryBuilder Insert(Dictionary<string, object> values)
+        {
+            queryStarted = true;
+            type = QueryType.Insert;
             currentValues = values;
 
             return this;
@@ -34,13 +55,24 @@ namespace Nerine.Collections
 
         public QueryBuilder From(string table)
         {
-            if (!queryStarted)
+            if (!queryStarted || FROM_QUERIES.Find(x => x == type) == null)
                 return null;
 
             currentTable = table;
 
             return this;
         }
+
+        public QueryBuilder Into(string table)
+        {
+            if (!queryStarted || INTO_QUERIES.Find(x => x == type) == null)
+                return null;
+
+            currentTable = table;
+
+            return this;
+        }
+
         public QueryBuilder Where(Func<Dictionary<string, object>, bool> where)
         {
             if (!queryStarted)
@@ -60,53 +92,77 @@ namespace Nerine.Collections
             List<Row> rows = new List<Row>();
 
             // check
-            if (wherePredicate != null)
+            if (type == QueryType.Select)
             {
-                foreach (var row in table.Rows)
+                if (wherePredicate != null)
                 {
-                    Dictionary<string, object> values = new Dictionary<string, object>();
-
-                    foreach (var index in currentValues)
+                    foreach (var row in table.Rows)
                     {
-                        values.Add(index, row.Values[index]);
+                        Dictionary<string, object> values = new Dictionary<string, object>();
+
+                        foreach (var index in currentValues)
+                        {
+                            values.Add(index, row.Values[index]);
+                        }
+
+                        if (wherePredicate(values) == true)
+                        {
+                            rows.Add(new Row()
+                            {
+                                Values = values
+                            });
+                        }
                     }
-
-                    if (wherePredicate(values) == true)
+                }
+                else
+                {
+                    foreach (var row in table.Rows)
                     {
+                        Dictionary<string, object> values = new Dictionary<string, object>();
+
+                        foreach (var index in currentValues)
+                        {
+                            values.Add(index, row.Values[index]);
+                        }
+
                         rows.Add(new Row()
                         {
                             Values = values
                         });
                     }
                 }
+
+                return new Query()
+                {
+                    Results = rows,
+                    Type = type
+                };
+            } else if (type == QueryType.Insert)
+            {
+                rows.Add(table.Insert(currentIValues));
+                return new Query()
+                {
+                    Results = rows,
+                    Type = type
+                };
             }
             else
             {
-                foreach (var row in table.Rows)
-                {
-                    Dictionary<string, object> values = new Dictionary<string, object>();
-
-                    foreach (var index in currentValues)
-                    {
-                        values.Add(index, row.Values[index]);
-                    }
-
-                    rows.Add(new Row()
-                    {
-                        Values = values
-                    });
-                }
+                return null;
             }
-
-            return new Query()
-            {
-                Results = rows
-            };
         }
+    }
+
+    public enum QueryType
+    {
+        Select = 1,
+        Insert = 2
     }
 
     public class Query
     {
         public List<Row> Results;
+
+        public QueryType Type;
     }
 }
