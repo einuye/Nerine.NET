@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using Nerine.Collections.Tables;
 using Nerine.Data;
+using Nerine.IO;
 using NUnit.Framework;
 using NUnit.Framework.Internal;
 
@@ -55,6 +56,7 @@ namespace Nerine.Tests
         [Test]
         public void TestQueryBuilder()
         {
+
             var coll = db.GetCollection("test");
             var qb = coll.StartBuilder();
 
@@ -70,6 +72,14 @@ namespace Nerine.Tests
                 {
                     return (byte) x["byte"] == (byte) 1;
                 })
+                .End();
+
+            var query3 = qb
+                .Insert(new Dictionary<string, object>()
+                {
+                    {"byte", "string"}
+                })
+                .Into("test")
                 .End();
 
             return;
