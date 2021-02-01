@@ -190,7 +190,7 @@ new collection will follow the end of the block.
 
 -- [[ DATA TYPES ]] --
 
-[String] (Type 01)
+[String] (Type 00)
 A string in the Nerine database, categorized as a binary-safe variable-length amount of
 bytes, characterized by a [1F] byte, and a 2 byte sized string length afterwards; ending
 with a UTF-8 encoded string.
@@ -207,7 +207,10 @@ After the first 3 bytes are read and parsed, you're able to read the string as u
 amount of bytes allocated to length mean that strings are limited to being 65535 characters
 long. This is to prevent massive amounts of string data from being added to the database.
 
-[Byte] (Type 02)
+[Byte] (Type 01)
+A normal byte, with a distinctive length of 1. 
+
+[Char] (Type 02)
 A normal byte, with a distinctive length of 1. 
 
 [Short] (Type 03)
