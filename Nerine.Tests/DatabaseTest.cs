@@ -3,9 +3,7 @@ using System.IO;
 using System.Text;
 using Nerine.Collections.Tables;
 using Nerine.Data;
-using Nerine.IO;
 using NUnit.Framework;
-using NUnit.Framework.Internal;
 
 namespace Nerine.Tests
 {
@@ -77,7 +75,8 @@ namespace Nerine.Tests
             var query3 = qb
                 .Insert(new Dictionary<string, object>()
                 {
-                    {"byte", "string"}
+                    {"string", "stringy"},
+                    {"byte", (byte)2},
                 })
                 .Into("test")
                 .End();

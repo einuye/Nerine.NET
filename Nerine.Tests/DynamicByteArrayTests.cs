@@ -1,6 +1,4 @@
-﻿using System.IO;
-using System.Text;
-using Nerine.IO;
+﻿using Nerine.IO;
 using NUnit.Framework;
 
 

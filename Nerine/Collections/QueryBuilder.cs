@@ -1,10 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Nerine.Collections.Tables;
-using Nerine.Exceptions;
 
 namespace Nerine.Collections
 {
@@ -48,7 +44,7 @@ namespace Nerine.Collections
         {
             queryStarted = true;
             type = QueryType.Insert;
-            currentValues = values;
+            currentIValues = values;
 
             return this;
         }
